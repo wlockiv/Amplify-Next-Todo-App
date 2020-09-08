@@ -1,7 +1,16 @@
-import React, { useReducer } from "react";
+import { API, graphqlOperation } from "aws-amplify";
+import { createTodo, createTodoList } from "../src/graphql/mutations";
 
+import { GetTodoListQuery } from "../src/API";
+import React from "react";
+import config from "../src/aws-exports";
+import { getTodoList } from "../src/graphql/queries";
 import { nanoid } from "nanoid";
 import produce from "immer";
+
+API.configure(config);
+
+const MY_ID = nanoid();
 
 type Todo = {
   id: string;
@@ -57,17 +66,32 @@ const App = () => {
     todos: [],
   });
 
-  const add = () => {
+  const add = async () => {
+    const todo = {
+      id: nanoid(),
+      name: state.currentTodo,
+      completed: false,
+      createdAt: `${Date.now}`,
+    };
+
     dispatch({
       type: "add",
-      payload: {
-        id: nanoid(),
-        name: state.currentTodo,
-        completed: false,
-        createdAt: `${Date.now}`,
-      },
+      payload: todo,
     });
+
+    // Optimistic update
     dispatch({ type: "set-current", payload: "" });
+
+    try {
+      await API.graphql(
+        graphqlOperation(createTodo, {
+          input: { ...todo, todoTodoListId: "global", userId: MY_ID },
+        })
+      );
+    } catch (err) {
+      // With revert on error
+      dispatch({ type: "set-current", payload: todo.name });
+    }
   };
 
   const edit = (todo: Todo) => {
@@ -130,6 +154,37 @@ const App = () => {
       </main>
     </>
   );
+};
+
+App.getInitialProps = async () => {
+  let result;
+
+  try {
+    result = await API.graphql(graphqlOperation(getTodoList, { id: "global" }));
+  } catch (err) {
+    console.warn(err);
+    return { todos: [] };
+  }
+
+  if (result.errors) {
+    console.warn("Failed to fetch todolist. ", result.errors);
+  }
+
+  if (result.data.getTodoList !== null) {
+    return { todos: result.data.getTodoList.todos.items };
+  }
+
+  try {
+    await API.graphql(
+      graphqlOperation(createTodoList, {
+        input: { id: "global", createdAt: `${Date.now()}` },
+      })
+    );
+  } catch (err) {
+    console.warn(err);
+  }
+
+  return { todos: [] };
 };
 
 export default App;

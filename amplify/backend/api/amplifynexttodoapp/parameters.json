@@ -1,0 +1,11 @@
+{
+    "AppSyncApiName": "amplifynexttodoapp",
+    "DynamoDBBillingMode": "PAY_PER_REQUEST",
+    "DynamoDBEnableServerSideEncryption": "false",
+    "AuthCognitoUserPoolId": {
+        "Fn::GetAtt": [
+            "authamplifynexttodoappd5532737",
+            "Outputs.UserPoolId"
+        ]
+    }
+}
